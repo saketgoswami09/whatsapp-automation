@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const env = require('./env');
 const logger = require('../utils/logger');
 
 let isConnected = false;
@@ -13,7 +14,7 @@ const connectDB = async () => {
   };
 
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, options);
+    const conn = await mongoose.connect(env.MONGO_URI, options);
     isConnected = true;
     logger.info(`MongoDB connected: ${conn.connection.host}`);
 
