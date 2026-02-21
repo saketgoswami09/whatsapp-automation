@@ -9,11 +9,10 @@ A **production-ready**, full-stack WhatsApp Conversational AI system. Businesses
 1. [Architecture Overview](#architecture-overview)
 2. [Tech Stack & Why](#tech-stack--why)
 3. [Project Structure — File by File](#project-structure--file-by-file)
-4. [Build From Scratch — Step by Step](#build-from-scratch--step-by-step)
-5. [Environment Variables Reference](#environment-variables-reference)
-6. [Running the Project](#running-the-project)
-7. [API Routes Reference](#api-routes-reference)
-8. [Tips & Common Gotchas](#tips--common-gotchas)
+4. [Environment Variables Reference](#environment-variables-reference)
+5. [Running the Project](#running-the-project)
+6. [API Routes Reference](#api-routes-reference)
+7. [Tips & Common Gotchas](#tips--common-gotchas)
 
 ---
 
