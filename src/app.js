@@ -1,4 +1,4 @@
-require('./config/env'); // ← validates all required env vars at startup
+require('./config/env');
 const env = require('./config/env');
 require('express-async-errors');
 const express = require('express');
@@ -37,21 +37,30 @@ app.use(
 );
 app.set('trust proxy', 1);
 
-// ─── Webhook — needs raw body for HMAC verification ───────────────────────────
-// IMPORTANT: Mount BEFORE json() middleware
+// ─── Webhook ──────────────────────────────────────────────────────────────────
+// Mounted BEFORE global express.json() to allow custom parsing in the router
 app.use('/webhook', webhookRoutes);
 
-// ─── Body Parsing ─────────────────────────────────────────────────────────────
+// ─── Global Body Parsing ──────────────────────────────────────────────────────
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(mongoSanitize()); // NoSQL injection protection
+app.use(mongoSanitize());
 
 // ─── HTTP Logging ─────────────────────────────────────────────────────────────
 const morganFormat = env.NODE_ENV === 'production' ? 'combined' : 'dev';
 app.use(morgan(morganFormat, { stream: { write: (msg) => logger.http(msg.trim()) } }));
 
-// ─── Global Rate Limiter ──────────────────────────────────────────────────────
-app.use('/api', apiLimiter);
+// ─── Root Route (Fixes the 404 on your ngrok URL) ─────────────────────────────
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'WhatsApp Automation API is running',
+    endpoints: {
+      health: '/health',
+      webhook: '/webhook (GET/POST)'
+    }
+  });
+});
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -64,6 +73,7 @@ app.get('/health', (req, res) => {
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
+app.use('/api', apiLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/conversations', conversationRoutes);
@@ -80,8 +90,7 @@ app.all('*', (req, res, next) => {
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 app.use(errorHandler);
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
-const PORT = env.PORT; // Joi-coerced to number, defaults to 5000
+const PORT = env.PORT || 5000;
 
 const start = async () => {
   await connectDB();
@@ -91,16 +100,6 @@ const start = async () => {
   });
 };
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received — shutting down gracefully');
-  process.exit(0);
-});
-process.on('unhandledRejection', (err) => {
-  logger.error(`Unhandled Rejection: ${err.message}`);
-  process.exit(1);
-});
-
 start();
 
-module.exports = app; // for testing
+module.exports = app;

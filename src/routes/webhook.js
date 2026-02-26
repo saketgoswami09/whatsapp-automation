@@ -18,6 +18,12 @@ const { webhookLimiter } = require("../middleware/rateLimiter");
 const env = require("../config/env");
 const logger = require("../utils/logger");
 
+// ─── Helper for Signature Verification ────────────────────────────────────────
+// Define this BEFORE it is used in the middleware
+const verifyRawBody = (req, res, buf) => {
+  req.rawBody = buf;
+};
+
 /**
  * GET /webhook — Meta verification challenge
  */
@@ -41,39 +47,39 @@ router.get("/", (req, res) => {
 router.post(
   "/",
   webhookLimiter,
-  express.json({ verify: verifyRawBody }),
+  express.json({ verify: verifyRawBody }), // Captures rawBody for security checks
   async (req, res) => {
-    // Always reply 200 immediately to Meta to prevent retries
+    // 1. Immediate acknowledgment to Meta
     res.status(200).send("EVENT_RECEIVED");
 
     try {
+      // 2. Signature verification (Skip in Dev if preferred, but recommended)
       const signature = req.headers["x-hub-signature-256"];
       if (
         env.NODE_ENV === "production" &&
         !verifyWebhookSignature(req.rawBody, signature)
       ) {
-        logger.warn("Invalid webhook signature");
+        logger.warn("Invalid webhook signature rejected");
         return;
       }
 
+      // 3. Payload parsing
       const messages = parseWebhookPayload(req.body);
-      if (!messages.length) return;
+      if (!messages || !messages.length) return;
 
       for (const msg of messages) {
-        // Handle only text messages for now (extend for media)
         if (msg.type !== "text" || !msg.text) continue;
 
-        const userText =
-          typeof msg.text === "string"
-            ? msg.text.trim()
+        const userText = typeof msg.text === "string" 
+            ? msg.text.trim() 
             : msg.text?.body?.trim();
+            
         const { from: phone, name, messageId, timestamp } = msg;
-        logger.info({ phone, userText });
-        // 1. Get/create user and conversation
+
+        // 4. Processing logic
         const user = await getOrCreateUser(phone, name);
         const conversation = await getOrCreateConversation(user._id, phone);
 
-        // 2. Save inbound message
         await saveMessage({
           conversationId: conversation._id,
           userId: user._id,
@@ -84,31 +90,18 @@ router.post(
           timestamp,
         });
 
-        // 3. Mark as read
         await markMessageRead(messageId).catch(() => {});
 
-        // 4. Get/create lead
         const lead = await getOrCreateLead(user._id, phone, name);
 
-        // 5. Generate AI/rule-based response
-        const {
-          text: replyText,
-          tokensUsed,
-          source,
-        } = await generateResponse({
+        const { text: replyText, tokensUsed, source } = await generateResponse({
           sessionId: conversation.sessionId,
           userId: user._id.toString(),
           message: userText,
         });
 
-        logger.info({ replyText, source, tokensUsed });
-
-        // 6. Send WhatsApp reply (DISABLED FOR POSTMAN TESTING)
-        // await sendText(phone, replyText);
-        // 6. Send WhatsApp reply
         await sendText(phone, replyText);
 
-        // 7. Save outbound message
         await saveMessage({
           conversationId: conversation._id,
           userId: user._id,
@@ -119,24 +112,16 @@ router.post(
           tokensUsed,
         });
 
-        // 8. Schedule follow-up for new leads
         if (lead.followUpCount === 0 && lead.status === "new") {
-          scheduleLeadFollowUps(lead).catch(() => {});
+          scheduleLeadFollowUps(lead).catch((e) => logger.error(`Follow-up error: ${e.message}`));
         }
 
-        logger.info(`Processed message from ${phone} [${source}]`);
+        logger.info(`Successfully processed message from ${phone}`);
       }
     } catch (err) {
-      logger.error(`Webhook processing error: ${err.message}`, {
-        stack: err.stack,
-      });
+      logger.error(`Webhook processing error: ${err.message}`, { stack: err.stack });
     }
-  },
+  }
 );
-
-// Store rawBody for signature verification
-function verifyRawBody(req, res, buf) {
-  req.rawBody = buf;
-}
 
 module.exports = router;

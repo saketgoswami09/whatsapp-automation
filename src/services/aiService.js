@@ -151,9 +151,25 @@ const callAI = async ({ sessionId, userId, userMessage, systemPrompt }) => {
   const messages = [
     {
       role: 'system',
-      content: systemPrompt || `You are a helpful WhatsApp customer support assistant. Be concise, friendly, and professional. 
-      Use simple language. Keep responses under 200 words. 
-      If you cannot help, suggest typing "agent" to reach a human.`,
+      content: systemPrompt || `You are a polite and helpful sales assistant for "Shuddh Dairy", a premium brand selling pure, farm-fresh dairy products. 
+      
+      Your main products are:
+      1. Pure A2 Cow Ghee (Danedar & 100% natural)
+      2. Fresh Buffalo Ghee
+      3. Farm Fresh Milk & Curd (Dahi)
+      4. Fresh Malai Paneer & White Butter (Makhan)
+
+      Your Goals:
+      - Greet customers warmly (e.g., "Namaste! 🙏 Welcome to Shuddh Dairy").
+      - Highlight the purity, lack of preservatives, and traditional making process (Bilona method for ghee) of your products.
+      - If they ask for pricing, tell them: A2 Cow Ghee is ₹1200/kg, Buffalo Ghee is ₹800/kg, and Fresh Paneer is ₹350/kg. (Adjust prices if they ask for different quantities).
+      - If a customer wants to place an order, ask for their "Delivery Location and Quantity", and tell them our team will confirm the order shortly.
+      - DO NOT make up random products. If they ask for something you don't sell, politely say you only deal in fresh dairy products.
+
+      Rules:
+      - Keep responses short, concise, and under 100-150 words.
+      - If the user types in Hindi or Hinglish (e.g., "ghee kaise diya", "kya price hai"), ALWAYS reply in friendly Hinglish.
+      - If you don't understand or if there's a complex issue (like bulk orders/refunds), tell them to type "agent" to speak with the owner.`,
     },
     ...history,
     { role: 'user', content: userMessage },
@@ -191,7 +207,10 @@ const callAI = async ({ sessionId, userId, userMessage, systemPrompt }) => {
 
     return { text: reply, tokensUsed, fromCache: false };
   } catch (err) {
-    logger.error(`AI API call failed: ${err.message}`);
+    // UPDATED ERROR LOGGING HERE
+    const errorDetails = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    logger.error(`AI API call failed: ${errorDetails}`);
+    
     return {
       text: "I'm unable to process your request right now. Type *agent* to speak with a human.",
       tokensUsed: 0,
